@@ -404,8 +404,11 @@ class pDeepModel(model_interface.ModelInterface):
     def _prepare_train_data_df(self, 
         precursor_df:pd.DataFrame,
         fragment_intensity_df:pd.DataFrame=None,
+        fragment_intensity_df_valid:pd.DataFrame=None,
     ):
         self.frag_inten_df = fragment_intensity_df[self.charged_frag_types]
+        # print(self.charged_frag_types)
+        self.frag_inten_df_valid = fragment_intensity_df_valid[self.charged_frag_types]
         # if np.all(precursor_df['nce'].values > 1):
         #     precursor_df['nce'] = precursor_df['nce']*self.NCE_factor
 
@@ -460,11 +463,29 @@ class pDeepModel(model_interface.ModelInterface):
 
     def _get_targets_from_batch_df(self, 
         batch_df: pd.DataFrame,
-        fragment_intensity_df:pd.DataFrame=None
+        fragment_intensity_df:pd.DataFrame=None,
+        **kwargs,
     ) -> torch.Tensor:
         return self._as_tensor(
             get_sliced_fragment_dataframe(
                 fragment_intensity_df, 
+                batch_df[
+                    ['frag_start_idx','frag_stop_idx']
+                ].values
+            ).values
+        ).view(-1, 
+            batch_df.nAA.values[0]-1, 
+            len(self.charged_frag_types)
+        )
+    
+    def _get_valid_targets_from_batch_df(self, 
+        batch_df: pd.DataFrame,
+        fragment_intensity_df_valid:pd.DataFrame=None,
+        **kwargs,
+    ) -> torch.Tensor:
+        return self._as_tensor(
+            get_sliced_fragment_dataframe(
+                fragment_intensity_df_valid, 
                 batch_df[
                     ['frag_start_idx','frag_stop_idx']
                 ].values
@@ -528,6 +549,7 @@ class pDeepModel(model_interface.ModelInterface):
     def train(self, 
         precursor_df: pd.DataFrame, 
         fragment_intensity_df, 
+        fragment_intensity_df_valid=None,
         *, 
         batch_size=1024, 
         epoch=20,
@@ -540,6 +562,7 @@ class pDeepModel(model_interface.ModelInterface):
         return super().train(
             precursor_df, 
             fragment_intensity_df=fragment_intensity_df,
+            fragment_intensity_df_valid=fragment_intensity_df_valid,
             batch_size=batch_size, 
             epoch=epoch, 
             warmup_epoch=warmup_epoch,
@@ -786,7 +809,7 @@ def calc_ms2_similarity(
                 ).values,
                 dtype=torch.float32, device=device
             ).reshape(
-                -1, (nAA-1)*len(charged_frag_types)
+                -1, int((nAA-1)*len(charged_frag_types))
             )
 
             frag_intens = torch.tensor(
@@ -799,28 +822,21 @@ def calc_ms2_similarity(
                 ).values,
                 dtype=torch.float32, device=device
             ).reshape(
-                -1, (nAA-1)*len(charged_frag_types)
+                -1, int((nAA-1)*len(charged_frag_types))
             )
 
             if 'PCC' in metrics:
-                psm_df.loc[batch_df.index,'PCC'] = pearson_correlation(
-                    pred_intens, frag_intens
-                ).cpu().detach().numpy()
+                psm_df.loc['PCC'] = np.NaN
+                psm_df.loc[batch_df.index, 'PCC'] = pearson_correlation(pred_intens, frag_intens).cpu().detach().numpy().astype(np.float32)
 
             if 'COS' in metrics or 'SA' in metrics:
-                cos = torch.cosine_similarity(
-                    pred_intens, frag_intens, dim=1
-                )
-                psm_df.loc[
-                    batch_df.index,'COS'
-                ] = cos.cpu().detach().numpy()
+                cos = torch.cosine_similarity(pred_intens, frag_intens, dim=1)
+                psm_df.loc['COS'] = np.NaN
+                psm_df.loc[batch_df.index,'COS'] = cos.cpu().detach().numpy().astype(np.float32)
                 
                 if 'SA' in metrics:
-                    psm_df.loc[
-                        batch_df.index,'SA'
-                    ] = spectral_angle(
-                        cos
-                    ).cpu().detach().numpy()
+                    psm_df.loc['SA'] = np.NaN
+                    psm_df.loc[batch_df.index,'SA'] = spectral_angle(cos).cpu().detach().numpy().astype(np.float32)
 
             if 'SPC' in metrics:
                 if spc_top_k > 1 and spc_top_k < frag_intens.size(1):
@@ -837,9 +853,10 @@ def calc_ms2_similarity(
                     frag_intens = frag_intens.flatten()[flat_idx].reshape(
                         sorted_idx.size(0),-1
                     )
+                psm_df.loc['SPC'] = np.NaN
                 psm_df.loc[batch_df.index,'SPC'] = spearman_correlation(
                     pred_intens, frag_intens, device
-                ).cpu().detach().numpy()
+                ).cpu().detach().numpy().astype(np.float32)
 
     metrics_describ = psm_df[metrics].describe()
     add_cutoff_metric(metrics_describ, psm_df, thres=0.9)

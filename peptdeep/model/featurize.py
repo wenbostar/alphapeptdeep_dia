@@ -96,7 +96,7 @@ def get_batch_mod_feature(
         ]
     )
     mod_x_batch = np.zeros(
-        (len(batch_df), batch_df.nAA.values[0]+2, mod_feature_size)
+        (len(batch_df), int(batch_df.nAA.values[0]+2), int(mod_feature_size))
     )
     for i, (mod_feats, mod_sites) in enumerate(
         zip(mod_features_list, mod_sites_list)

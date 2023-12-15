@@ -681,6 +681,7 @@ class ModelManager(object):
     def train_ms2_model(self,
         psm_df: pd.DataFrame,
         matched_intensity_df: pd.DataFrame,
+        matched_valid_intensity_df: pd.DataFrame = None
     ):
         """
         Using matched_intensity_df to train/fine-tune the ms2 model. 
@@ -696,6 +697,9 @@ class ModelManager(object):
 
         matched_intensity_df : pd.DataFrame
             The matched fragment intensities for `psm_df`.
+
+        matched_valid_intensity_df : pd.DataFrame, optional
+            The same shape with matched_intensity_df: an intensity is valid or not.
         """
         if self.psm_num_to_train_ms2 > 0:
             if self.psm_num_to_train_ms2 < len(psm_df):
@@ -713,6 +717,14 @@ class ModelManager(object):
                         tr_inten_df[frag_type] = matched_intensity_df[frag_type]
                     else:
                         tr_inten_df[frag_type] = 0.0
+
+                tr_inten_valid_df = pd.DataFrame()
+                for frag_type in self.ms2_model.charged_frag_types:
+                    if frag_type in matched_valid_intensity_df.columns:
+                        tr_inten_valid_df[frag_type] = matched_valid_intensity_df[frag_type]
+                    else:
+                        tr_inten_valid_df[frag_type] = 0.0
+
                 normalize_fragment_intensities(
                     tr_df, tr_inten_df
                 )
@@ -777,6 +789,7 @@ class ModelManager(object):
                 logging.info(f"{len(tr_df)} PSMs for MS2 model training/transfer learning")
             self.ms2_model.train(tr_df, 
                 fragment_intensity_df=tr_inten_df,
+                fragment_intensity_df_valid=tr_inten_valid_df,
                 batch_size=self.batch_size_to_train_ms2,
                 epoch=self.epoch_to_train_ms2,
                 warmup_epoch=self.warmup_epoch_to_train_ms2,

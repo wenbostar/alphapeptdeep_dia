@@ -639,16 +639,21 @@ class ModelInterface(object):
                 targets = self._get_targets_from_batch_df(
                     batch_df, **kwargs
                 )
+
+                valid_targets = self._get_valid_targets_from_batch_df(
+                    batch_df, **kwargs
+                )
+
                 features = self._get_features_from_batch_df(
                     batch_df, **kwargs
                 )
                 if isinstance(features, tuple):
                     batch_cost.append(
-                        self._train_one_batch(targets, *features)
+                        self._train_one_batch(targets, *features, valid_targets=valid_targets)
                     )
                 else:
                     batch_cost.append(
-                        self._train_one_batch(targets, features)
+                        self._train_one_batch(targets, features, valid_targets=valid_targets)
                     )
                 
             if verbose_each_epoch:
@@ -661,11 +666,16 @@ class ModelInterface(object):
         self, 
         targets:torch.Tensor, 
         *features,
+        valid_targets:torch.Tensor=None,
     ):
         """Training for a mini batch"""
         self.optimizer.zero_grad()
         predicts = self.model(*features)
-        cost = self.loss_func(predicts, targets)
+        if valid_targets is not None:
+            mask = torch.where(valid_targets == 0, 1, 0)
+            cost = self.loss_func(mask*predicts, mask*targets)
+        else:
+            cost = self.loss_func(predicts, targets)
         cost.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
         self.optimizer.step()
@@ -680,6 +690,28 @@ class ModelInterface(object):
         ).cpu().detach().numpy()
 
     def _get_targets_from_batch_df(self,
+        batch_df:pd.DataFrame, **kwargs,
+    )->torch.Tensor:
+        """Tell the `train()` method how to get target values from the `batch_df`.
+           All sub-classes must re-implement this method.
+           Use torch.tensor(np.array, dtype=..., device=self.device) to convert tensor.
+
+        Parameters
+        ----------
+        batch_df : pd.DataFrame
+            Dataframe of each mini batch.
+
+        Returns
+        -------
+        torch.Tensor
+            Target value tensor
+        """
+        return self._as_tensor(
+            batch_df[self.target_column_to_train].values, 
+            dtype=torch.float32
+        )
+    
+    def _get_valid_targets_from_batch_df(self,
         batch_df:pd.DataFrame, **kwargs,
     )->torch.Tensor:
         """Tell the `train()` method how to get target values from the `batch_df`.
