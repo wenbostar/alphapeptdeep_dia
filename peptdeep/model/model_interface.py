@@ -640,9 +640,12 @@ class ModelInterface(object):
                     batch_df, **kwargs
                 )
 
-                valid_targets = self._get_valid_targets_from_batch_df(
-                    batch_df, **kwargs
-                )
+                if "fragment_intensity_df_valid" in kwargs:
+                    valid_targets = self._get_valid_targets_from_batch_df(
+                        batch_df, **kwargs
+                    )
+                else:
+                    valid_targets = None
 
                 features = self._get_features_from_batch_df(
                     batch_df, **kwargs
