@@ -675,7 +675,7 @@ class ModelInterface(object):
         self.optimizer.zero_grad()
         predicts = self.model(*features)
         if valid_targets is not None:
-            mask = torch.where(valid_targets == 0, 1, 0)
+            mask = torch.where(valid_targets <= 0, 1.0, 0.0)
             cost = self.loss_func(mask*predicts, mask*targets)
         else:
             cost = self.loss_func(predicts, targets)
