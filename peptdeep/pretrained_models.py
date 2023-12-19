@@ -592,7 +592,7 @@ class ModelManager(object):
                 ].copy()
                 if len(test_psm_df) > self.psm_num_to_test_rt_ccs:
                     test_psm_df = test_psm_df.sample(
-                        n=self.psm_num_to_test_rt_ccs
+                        n=self.psm_num_to_test_rt_ccs,random_state=1337
                     ).copy()
                 elif len(test_psm_df) == 0:
                     test_psm_df = psm_df
@@ -758,7 +758,7 @@ class ModelManager(object):
                     ~psm_df.sequence.isin(set(tr_df.sequence))
                 ].copy()
                 if len(test_psm_df) > self.psm_num_to_test_ms2:
-                    test_psm_df = test_psm_df.sample(n=self.psm_num_to_test_ms2)
+                    test_psm_df = test_psm_df.sample(n=self.psm_num_to_test_ms2,random_state=1337)
                 elif len(test_psm_df) == 0:
                     test_psm_df = psm_df.copy()
             else:
@@ -774,15 +774,17 @@ class ModelManager(object):
             test_psm_df = pd.DataFrame()
 
         if len(test_psm_df) > 0:
-            logging.info(
-                "Testing pretrained MS2 model:\n"+
-                str(calc_ms2_similarity(
+            test_res = calc_ms2_similarity(
                     test_psm_df, 
                     self.ms2_model.predict(
                         test_psm_df, reference_frag_df=tr_inten_df
                     ), 
                     fragment_intensity_df=tr_inten_df
-                )[-1])
+                )
+            test_res[0].to_csv("test_res_pretrained.csv",index=False)
+            logging.info(
+                "Testing pretrained MS2 model:\n"+
+                str(test_res[-1])
             )
         if len(tr_df) > 0:
             if self._train_psm_logging:
@@ -797,15 +799,17 @@ class ModelManager(object):
                 verbose=self.train_verbose,
             )
         if len(test_psm_df) > 0:
-            logging.info(
-                "Testing refined MS2 model:\n"+
-                str(calc_ms2_similarity(
+            test_res = calc_ms2_similarity(
                     test_psm_df, 
                     self.ms2_model.predict(
                         test_psm_df, reference_frag_df=tr_inten_df
                     ), 
                     fragment_intensity_df=tr_inten_df
-                )[-1])
+                )
+            test_res[0].to_csv("test_res_fine_tuned.csv",index=False)
+            logging.info(
+                "Testing refined MS2 model:\n"+
+                str(test_res[-1])
             )
             
 
