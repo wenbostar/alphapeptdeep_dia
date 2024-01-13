@@ -275,6 +275,7 @@ class ModelManager(object):
     def __init__(self, 
         mask_modloss:bool=False,
         device:str="gpu",
+        out_dir:str="./",
     ):
         """
         Parameters
@@ -296,6 +297,7 @@ class ModelManager(object):
         self.ccs_model:AlphaCCSModel = AlphaCCSModel(device=device)
         self.load_installed_models()
         self.reset_by_global_settings(reload_models=False)
+        self.out_dir = out_dir
 
     def reset_by_global_settings(self,
         reload_models=True,
@@ -599,10 +601,12 @@ class ModelManager(object):
             else:
                 test_psm_df = psm_df
             
+            test_out_file = os.path.join(self.out_dir, 'rt_test.tsv')
+            rt_test_res = self.rt_model.predict(test_psm_df)
+            rt_test_res.to_csv(test_out_file, index=False, sep='\t')
             logging.info(
                 "Testing refined RT model:\n" + 
-                str(evaluate_linear_regression(
-                    self.rt_model.predict(test_psm_df))
+                str(evaluate_linear_regression(rt_test_res)
                 )
             )
 
@@ -781,7 +785,8 @@ class ModelManager(object):
                     ), 
                     fragment_intensity_df=tr_inten_df
                 )
-            test_res[0].to_csv("test_res_pretrained.csv",index=False)
+            out_test_res_to_file = os.path.join(self.out_dir, 'test_res_pretrained.csv')
+            test_res[0].to_csv(out_test_res_to_file,index=False)
             logging.info(
                 "Testing pretrained MS2 model:\n"+
                 str(test_res[-1])
@@ -806,7 +811,8 @@ class ModelManager(object):
                     ), 
                     fragment_intensity_df=tr_inten_df
                 )
-            test_res[0].to_csv("test_res_fine_tuned.csv",index=False)
+            out_test_res_to_file = os.path.join(self.out_dir, 'test_res_fine_tuned.csv')
+            test_res[0].to_csv(out_test_res_to_file,index=False)
             logging.info(
                 "Testing refined MS2 model:\n"+
                 str(test_res[-1])
