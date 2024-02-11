@@ -734,8 +734,9 @@ class ModelManager(object):
                 )
 
                 if self.use_grid_nce_search:
+                    print("Perform grid search for NCE and instrument ...")
                     self.nce, self.instrument = self.ms2_model.grid_nce_search(
-                        tr_df, tr_inten_df,
+                        tr_df.copy(), tr_inten_df,
                         nce_first=model_mgr_settings['transfer'][
                             'grid_nce_first'
                         ],
@@ -749,10 +750,13 @@ class ModelManager(object):
                             'grid_instrument'
                         ],
                     )
-                    tr_df['nce'] = self.nce
+                    tr_df['nce'] = int(self.nce)
                     tr_df['instrument'] = self.instrument
+                    print(f"Optimal NCE: {self.nce}, Instrument: {self.instrument}")
+                    print(tr_df.dtypes)
                 else:
                     self.set_default_nce_instrument(tr_df)
+                    print(tr_df.dtypes)
         else:
             tr_df = []
 
