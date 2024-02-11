@@ -630,6 +630,9 @@ class pDeepModel(model_interface.ModelInterface):
         max_psm_subset = 1000000,
         callback = None
     ):
+        print('Searching NCE...')
+        print(f'NCE range: {nce_first} - {nce_last}, step: {nce_step}')
+        print(f'Instruments: {search_instruments}')
         if len(psm_df) > max_psm_subset:
             psm_df = psm_df.sample(max_psm_subset).copy()
         best_pcc = -1
