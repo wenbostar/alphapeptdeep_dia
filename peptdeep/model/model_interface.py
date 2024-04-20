@@ -663,6 +663,8 @@ class ModelInterface(object):
                 batch_tqdm.set_description(
                     f'Epoch={epoch+1}, nAA={nAA}, batch={len(batch_cost)}, loss={batch_cost[-1]:.4f}'
                 )
+        
+        ## TODO: add validation loss and early stopping
         return batch_cost
 
     def _train_one_batch(

@@ -782,10 +782,11 @@ class ModelManager(object):
             test_psm_df = pd.DataFrame()
 
         if len(test_psm_df) > 0:
+
             test_res = calc_ms2_similarity(
-                    test_psm_df, 
+                    test_psm_df.copy(), 
                     self.ms2_model.predict(
-                        test_psm_df, reference_frag_df=tr_inten_df
+                        test_psm_df.copy(), reference_frag_df=tr_inten_df
                     ), 
                     fragment_intensity_df=tr_inten_df
                 )
@@ -795,6 +796,7 @@ class ModelManager(object):
                 "Testing pretrained MS2 model:\n"+
                 str(test_res[-1])
             )
+
         if len(tr_df) > 0:
             if self._train_psm_logging:
                 logging.info(f"{len(tr_df)} PSMs for MS2 model training/transfer learning")
@@ -808,6 +810,8 @@ class ModelManager(object):
                 verbose=self.train_verbose,
             )
         if len(test_psm_df) > 0:
+            print("test_psm_df dtypes:")
+            print(test_psm_df.dtypes)
             test_res = calc_ms2_similarity(
                     test_psm_df, 
                     self.ms2_model.predict(
