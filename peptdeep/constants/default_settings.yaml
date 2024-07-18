@@ -73,7 +73,7 @@ model_mgr:
   external_ccs_model: ''
   instrument_group:
     ThermoTOF: ThermoTOF
-    Astral: ThermoTOF
+    Astral: Lumos
     Lumos: Lumos
     QE: QE
     timsTOF: timsTOF

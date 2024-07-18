@@ -35,7 +35,7 @@ from peptdeep.settings import global_settings
 
 from peptdeep.model.ms2 import (
     pDeepModel, normalize_fragment_intensities,
-    calc_ms2_similarity
+    calc_ms2_similarity, calc_ms2_similarity_mask
 )
 from peptdeep.model.rt import AlphaRTModel
 from peptdeep.model.ccs import AlphaCCSModel
@@ -782,14 +782,25 @@ class ModelManager(object):
             test_psm_df = pd.DataFrame()
 
         if len(test_psm_df) > 0:
-
-            test_res = calc_ms2_similarity(
-                    test_psm_df.copy(), 
-                    self.ms2_model.predict(
-                        test_psm_df.copy(), reference_frag_df=tr_inten_df
-                    ), 
-                    fragment_intensity_df=tr_inten_df
-                )
+            
+            if tr_inten_valid_df is None:
+                test_res = calc_ms2_similarity(
+                        test_psm_df.copy(), 
+                        self.ms2_model.predict(
+                            test_psm_df.copy(), reference_frag_df=tr_inten_df
+                        ), 
+                        fragment_intensity_df=tr_inten_df
+                    )
+            else:
+                print("Using masking in metrics calculation ...")
+                test_res = calc_ms2_similarity_mask(
+                        test_psm_df.copy(), 
+                        self.ms2_model.predict(
+                            test_psm_df.copy(), reference_frag_df=tr_inten_df
+                        ), 
+                        fragment_intensity_df=tr_inten_df,
+                        fragment_intensity_valid_df=tr_inten_valid_df
+                    )
             out_test_res_to_file = os.path.join(self.out_dir, 'test_res_pretrained.csv')
             test_res[0].to_csv(out_test_res_to_file,index=False)
             logging.info(
@@ -812,12 +823,23 @@ class ModelManager(object):
         if len(test_psm_df) > 0:
             print("test_psm_df dtypes:")
             print(test_psm_df.dtypes)
-            test_res = calc_ms2_similarity(
-                    test_psm_df, 
-                    self.ms2_model.predict(
-                        test_psm_df, reference_frag_df=tr_inten_df
-                    ), 
-                    fragment_intensity_df=tr_inten_df
+            if tr_inten_valid_df is None:
+                test_res = calc_ms2_similarity(
+                        test_psm_df, 
+                        self.ms2_model.predict(
+                            test_psm_df, reference_frag_df=tr_inten_df
+                        ), 
+                        fragment_intensity_df=tr_inten_df
+                )
+            else:
+                print("Using masking in metrics calculation ...")
+                test_res = calc_ms2_similarity_mask(
+                        test_psm_df, 
+                        self.ms2_model.predict(
+                            test_psm_df, reference_frag_df=tr_inten_df
+                        ), 
+                        fragment_intensity_df=tr_inten_df,
+                        fragment_intensity_valid_df=tr_inten_valid_df
                 )
             out_test_res_to_file = os.path.join(self.out_dir, 'test_res_fine_tuned.csv')
             test_res[0].to_csv(out_test_res_to_file,index=False)

@@ -392,7 +392,8 @@ class pDeepModel(model_interface.ModelInterface):
             **kwargs, # other model params
         )
 
-        self.loss_func = torch.nn.L1Loss()
+        #self.loss_func = torch.nn.L1Loss()
+        print("MS2 model initialized")
         self.min_inten = 1e-4
 
     def _get_modloss_frags(self, modloss='modloss'):
@@ -714,6 +715,29 @@ def pearson_correlation(x:torch.Tensor, y:torch.Tensor):
         dim = 1
     )
 
+def pearson_correlation_mask(x:torch.Tensor, y:torch.Tensor, mask:torch.Tensor):
+    """Compute pearson correlation between 2 batches of 1-D tensors
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Shape (Batch, n)
+
+    y : torch.Tensor
+        Shape (Batch, n)
+
+    """
+    ## mask is 1 for valid values. mask out invalid values when calculating mean
+    x_masked = x*mask
+    y_masked = y*mask
+    x_mean = x_masked.sum(dim=1, keepdim=True)/mask.sum(dim=1, keepdim=True)
+    y_mean = y_masked.sum(dim=1, keepdim=True)/mask.sum(dim=1, keepdim=True)
+    return torch.cosine_similarity(
+        (x-x_mean)*mask,
+        (y-y_mean)*mask,
+        dim = 1
+    )
+
 #legacy
 pearson=pearson_correlation
 
@@ -834,6 +858,127 @@ def calc_ms2_similarity(
 
             if 'COS' in metrics or 'SA' in metrics:
                 cos = torch.cosine_similarity(pred_intens, frag_intens, dim=1)
+                psm_df.loc['COS'] = np.NaN
+                psm_df.loc[batch_df.index,'COS'] = cos.cpu().detach().numpy().astype(np.float32)
+                
+                if 'SA' in metrics:
+                    psm_df.loc['SA'] = np.NaN
+                    psm_df.loc[batch_df.index,'SA'] = spectral_angle(cos).cpu().detach().numpy().astype(np.float32)
+
+            if 'SPC' in metrics:
+                if spc_top_k > 1 and spc_top_k < frag_intens.size(1):
+                    sorted_idx = frag_intens.argsort(dim=1, descending=True)
+                    flat_idx = (
+                        sorted_idx[:,:spc_top_k]+torch.arange(
+                            frag_intens.size(0), dtype=torch.int,
+                            device=device
+                        ).unsqueeze(1)*frag_intens.size(1)
+                    ).flatten()
+                    pred_intens = pred_intens.flatten()[flat_idx].reshape(
+                        sorted_idx.size(0),-1
+                    )
+                    frag_intens = frag_intens.flatten()[flat_idx].reshape(
+                        sorted_idx.size(0),-1
+                    )
+                psm_df.loc['SPC'] = np.NaN
+                psm_df.loc[batch_df.index,'SPC'] = spearman_correlation(
+                    pred_intens, frag_intens, device
+                ).cpu().detach().numpy().astype(np.float32)
+
+    metrics_describ = psm_df[metrics].describe()
+    add_cutoff_metric(metrics_describ, psm_df, thres=0.9)
+    add_cutoff_metric(metrics_describ, psm_df, thres=0.75)
+
+    torch.cuda.empty_cache()
+    return psm_df, metrics_describ
+
+
+def calc_ms2_similarity_mask(
+    psm_df: pd.DataFrame,
+    predict_intensity_df: pd.DataFrame,
+    fragment_intensity_df: pd.DataFrame,
+    fragment_intensity_valid_df: pd.DataFrame,
+    charged_frag_types: List=None,
+    metrics = ['PCC','COS','SA','SPC'],
+    GPU = True,
+    batch_size=10240,
+    verbose=False,
+    spc_top_k=0,
+)->Tuple[pd.DataFrame, pd.DataFrame]:
+    if GPU:
+        device, _ = get_available_device()
+    else:
+        device = torch.device('cpu')
+
+    if charged_frag_types is None or len(charged_frag_types)==0:
+        charged_frag_types = fragment_intensity_df.columns.values
+
+    _grouped = psm_df.groupby('nAA')
+
+    if verbose:
+        batch_tqdm = tqdm(_grouped)
+    else:
+        batch_tqdm = _grouped
+
+    for met in metrics:
+        psm_df[met] = 0
+
+    for nAA, df_group in batch_tqdm:
+        for i in range(0, len(df_group), batch_size):   
+            batch_end = i+batch_size
+            batch_df = df_group.iloc[i:batch_end,:]
+
+            pred_intens = torch.tensor(
+                get_sliced_fragment_dataframe(
+                    predict_intensity_df, 
+                    batch_df[
+                        ['frag_start_idx','frag_stop_idx']
+                    ].values,
+                    charged_frag_types
+                ).values,
+                dtype=torch.float32, device=device
+            ).reshape(
+                -1, int((nAA-1)*len(charged_frag_types))
+            )
+
+            frag_intens = torch.tensor(
+                get_sliced_fragment_dataframe(
+                    fragment_intensity_df, 
+                    batch_df[
+                        ['frag_start_idx','frag_stop_idx']
+                    ].values,
+                    charged_frag_types
+                ).values,
+                dtype=torch.float32, device=device
+            ).reshape(
+                -1, int((nAA-1)*len(charged_frag_types))
+            )
+
+            frag_intens_valid = torch.tensor(
+                get_sliced_fragment_dataframe(
+                    fragment_intensity_valid_df,
+                    batch_df[
+                        ['frag_start_idx','frag_stop_idx']
+                    ].values,
+                    charged_frag_types
+                ).values,
+                dtype=torch.float32, device=device
+            ).reshape(
+                -1, int((nAA-1)*len(charged_frag_types))
+            )
+
+            ## only use valid fragment intensities
+            # mask = frag_intens_valid <= 0
+            mask = torch.where(frag_intens_valid<=0, 1,0)
+            #pred_intens = pred_intens[mask]
+            #frag_intens = frag_intens[mask]
+
+            if 'PCC' in metrics:
+                psm_df.loc['PCC'] = np.NaN
+                psm_df.loc[batch_df.index, 'PCC'] = pearson_correlation_mask(pred_intens, frag_intens, mask).cpu().detach().numpy().astype(np.float32)
+
+            if 'COS' in metrics or 'SA' in metrics:
+                cos = torch.cosine_similarity(pred_intens*mask, frag_intens*mask, dim=1)
                 psm_df.loc['COS'] = np.NaN
                 psm_df.loc[batch_df.index,'COS'] = cos.cpu().detach().numpy().astype(np.float32)
                 

@@ -244,6 +244,21 @@ class ModelInterface(object):
         self._model_to_device()
         self._init_for_training()
 
+
+    def _adjust_learning_rate(optimizer, init_lr, min_lr, warmup_epoch, epoch, args):
+        """Decay the learning rate with half-cycle cosine after warmup"""
+        if epoch < warmup_epoch:
+            lr = init_lr * epoch / warmup_epoch
+        else:
+            lr = min_lr + (init_lr - min_lr) * 0.5 * (1. + math.cos(math.pi * (epoch - warmup_epoch) / (args.epochs - warmup_epoch)))
+        for param_group in optimizer.param_groups:
+            if "lr_scale" in param_group:
+                param_group["lr"] = lr * param_group["lr_scale"]
+            else:
+                param_group["lr"] = lr
+        return lr
+
+
     def train_with_warmup(self,
         precursor_df: pd.DataFrame,
         *,
@@ -524,6 +539,15 @@ class ModelInterface(object):
         The default loss function is nn.L1Loss.
         """
         self.loss_func = torch.nn.L1Loss()
+        self.loss_func_mse = torch.nn.MSELoss(reduction='sum')
+        self.loss_func_l1 = torch.nn.L1Loss(reduction='sum')
+        #self.loss_func_rmse = torch.sqrt()
+    
+    def _RMSE_loss_func(self, predicts, targets, n_valid):
+        return torch.sqrt(torch.sum((predicts - targets) ** 2)/n_valid)
+
+    def _weighted_mse_loss_func(self, predicts, targets, weights):
+        return torch.sum(weights * (predicts - targets) ** 2)
 
     def _as_tensor(self, 
         data:np.ndarray, 
@@ -678,7 +702,24 @@ class ModelInterface(object):
         predicts = self.model(*features)
         if valid_targets is not None:
             mask = torch.where(valid_targets <= 0, 1.0, 0.0)
-            cost = self.loss_func(mask*predicts, mask*targets)
+            ## get the number of unmasked values, i.e., the number of values with 1.0
+            num_valid = torch.sum(mask)
+            #print(num_valid)
+            ## get the number of total elements in the tensor
+            #num_total = torch.numel(mask)
+            l1_loss = self.loss_func_l1(mask*predicts, mask*targets)/num_valid
+            #mse_loss = self.loss_func_mse(mask*predicts, mask*targets)*1.0/num_valid
+            #rmse_loss = self._RMSE_loss_func(mask*predicts, mask*targets, num_valid)
+            predicts_flat = torch.flatten(predicts, start_dim=1)
+            targets_flat = torch.flatten(targets, start_dim=1)
+            mask_flat = torch.flatten(mask, start_dim=1)
+            cosine_loss = 1 - torch.nn.functional.cosine_similarity(mask_flat*predicts_flat, mask_flat*targets_flat,dim=1)
+            cosine_loss = torch.mean(cosine_loss)
+            #cost =  rmse_loss
+            cost = l1_loss #+ 0*cosine_loss
+            #cost = self.loss_func(predicts, targets)
+            #cost = l1_loss
+            #cost = cosine_loss
         else:
             cost = self.loss_func(predicts, targets)
         cost.backward()
