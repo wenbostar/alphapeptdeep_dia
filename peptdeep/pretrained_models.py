@@ -44,6 +44,8 @@ from peptdeep.utils import (
 )
 
 from peptdeep.settings import global_settings
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 pretrain_dir = os.path.join(
     os.path.join(
