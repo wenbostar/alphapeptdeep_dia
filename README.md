@@ -1,4 +1,5 @@
-# AlphaPeptDeep (PeptDeep)
+# AlphaPeptDeep-DIA: Customized version of AlphaPeptDeep for model fine-tuning using DIA data.
+
 
 [![Default installation and tests](https://github.com/MannLabs/alphapeptdeep/actions/workflows/pip_installation.yml/badge.svg)](https://github.com/MannLabs/alphapeptdeep/actions/workflows/pip_installation.yml)
 [![Publish on PyPi and release on GitHub](https://github.com/MannLabs/alphapeptdeep/actions/workflows/publish_and_release.yml/badge.svg)](https://github.com/MannLabs/alphapeptdeep/actions/workflows/publish_and_release.yml)
