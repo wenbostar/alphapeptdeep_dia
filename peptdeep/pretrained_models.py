@@ -625,7 +625,7 @@ class ModelManager(object):
             Training psm_df which contains 'ccs' or 'mobility' column.
         """
 
-        if 'mobility' not in psm_df.columns or 'ccs' not in psm_df.columns:
+        if 'mobility' not in psm_df.columns and 'ccs' not in psm_df.columns:
             return
         elif 'ccs' not in psm_df.columns:
             psm_df['ccs'] = mobility_to_ccs_for_df(
