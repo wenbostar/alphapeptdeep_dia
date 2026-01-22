@@ -679,6 +679,10 @@ class ModelManager(object):
             test_out_file = os.path.join(self.out_dir, 'ccs_test.tsv')
             ccs_test_res = self.ccs_model.predict(test_psm_df)
             ccs_test_res.to_csv(test_out_file, index=False, sep='\t')
+
+            test_out_file = os.path.join(self.out_dir, 'mobility_test.tsv')
+            ccs_test_res = self.predict_mobility(test_psm_df)
+            ccs_test_res.to_csv(test_out_file, index=False, sep='\t')
             logging.info(
                 "Testing refined CCS model:\n" + 
                 str(evaluate_linear_regression(
