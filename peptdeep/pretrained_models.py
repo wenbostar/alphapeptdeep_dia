@@ -675,7 +675,10 @@ class ModelManager(object):
                     test_psm_df = psm_df
             else:
                 test_psm_df = psm_df
-            
+
+            test_out_file = os.path.join(self.out_dir, 'ccs_test.tsv')
+            ccs_test_res = self.ccs_model.predict(test_psm_df)
+            ccs_test_res.to_csv(test_out_file, index=False, sep='\t')
             logging.info(
                 "Testing refined CCS model:\n" + 
                 str(evaluate_linear_regression(
